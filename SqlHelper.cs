@@ -1,116 +1,177 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Configuration;
-using System.Data;
-using System.Data.SqlClient;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
-namespace _01UserInfoMgr
+using System.Data;
+using System.Data.SqlClient;
+using System.Configuration;
+
+
+namespace DAL
 {
-    public class SqlHelper
+    public class SQLHelper
     {
-        #region 返回连接字符串
+        //public static string connString = ConfigurationManager.ConnectionStrings["connString"].ToString();
+        private static string connString = Common.StringSecurity.DESDecrypt(ConfigurationManager.ConnectionStrings["connString"].ToString());
+
+        #region 不带参数的查询方法
+
         /// <summary>
-        /// 返回连接字符串
+        /// 获取第一行第一列
         /// </summary>
-        /// <returns>连接字符串</returns>
-        public static string GetSqlConnectionString()
+        /// <param name="sql">操作的sql语句</param>
+        /// <returns>返回object类型</returns>
+        public static object GetOneResult(string sql)
         {
-            return ConfigurationManager.ConnectionStrings["sql"].ConnectionString;
-
-        } 
-        #endregion
-
-        #region 封装一个执行sql 返回受影响的行数
+            SqlConnection conn = new SqlConnection(connString);
+            SqlCommand cmd = new SqlCommand(sql,conn);
+            try
+            {
+                conn.Open();
+                return cmd.ExecuteScalar();
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+            finally
+            {
+                conn.Close();
+            }
+        }
         /// <summary>
-        /// 执行一个sql，返回影响行数
+        /// 增删改操作数据表（Insert、Update、Delete）
         /// </summary>
-        /// <param name="sqlText">执行的sql脚本</param>
-        /// <param name="parameters">参数集合</param>
-        /// <returns>受影响的行数</returns>
-        public static int ExcuteNonQuery(string sqlText,params SqlParameter[] parameters)
+        /// <param name="sql">操作的sql语句</param>
+        /// <returns>返回受影响的行数</returns>
+        public static int Update(string sql)
         {
-            using (SqlConnection conn = new SqlConnection(GetSqlConnectionString()))
+            SqlConnection conn = new SqlConnection(connString);
+            SqlCommand cmd = new SqlCommand(sql, conn);
+            try
             {
-                using (SqlCommand cmd = conn.CreateCommand())
-                {
-                    conn.Open();
-                    cmd.CommandText = sqlText;
-                    cmd.Parameters.AddRange(parameters);//把参数添加到cmd命令中。
-                    return cmd.ExecuteNonQuery();
-                }
+                conn.Open();
+                return cmd.ExecuteNonQuery();
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+            finally
+            {
+                conn.Close();
             }
         }
-        #endregion
-
-        #region 执行sql。返回 查询结果中的 第一行第一列的值
-
-        public static object ExcuteScalar(string sqlText, params SqlParameter[] parameters)
+        /// <summary>
+        /// 获取单一结果集
+        /// </summary>
+        /// <param name="sql">操作的sql语句</param>
+        /// <returns>返回结果集</returns>
+        public static SqlDataReader GetReader(string sql)
         {
-            using (SqlConnection conn = new SqlConnection(GetSqlConnectionString()))
+            SqlConnection conn = new SqlConnection(connString);
+            SqlCommand cmd = new SqlCommand(sql,conn);
+            try
             {
-                using (SqlCommand cmd = conn.CreateCommand())
-                {
-                    conn.Open();
-                    cmd.CommandText = sqlText;
-                    cmd.Parameters.AddRange(parameters);
-                    return cmd.ExecuteScalar();
-                }
+                conn.Open();
+                return cmd.ExecuteReader(CommandBehavior.CloseConnection);
+            }
+            catch (Exception ex)
+            {
+                conn.Close();
+                throw ex;
             }
         }
 
-        public static T ExcuteScalar<T>(string sqlText, params SqlParameter[] parameters)
-            //where T:UserInfo要求必须继承某个类型
-            //where T:class //必须是类
-            //where T:new () //要求T必须有默认构造函数
-            
-            //where 可以现在T类型，必须是class，必须有构造函数，必须继承或者实现某个类或者接口。
+        #endregion
+
+        #region 带参数的查询方法
+        public static object GetOneResult(string sql, SqlParameter[] param)
         {
-            using (SqlConnection conn = new SqlConnection(GetSqlConnectionString()))
+            SqlConnection conn = new SqlConnection(connString);
+            SqlCommand cmd = new SqlCommand(sql,conn);
+
+            try
             {
-                using (SqlCommand cmd = conn.CreateCommand())
-                {
-                    conn.Open();
-                    cmd.CommandText = sqlText;
-                    cmd.Parameters.AddRange(parameters);
-                    return (T)cmd.ExecuteScalar();
-                    //int? i = 0;
-                    //object num = i;
-                    //i = num as int?;
-                }
+                cmd.Parameters.AddRange(param);
+                conn.Open();
+                return cmd.ExecuteScalar();
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+            finally
+            {
+                conn.Close();
             }
         }
-        #endregion
 
-        #region 执行sql 返回一个DataTable
-
-        public static DataTable ExcuteDataTable(string sqlText, params SqlParameter[] parameters)
+        public static int Update(string sql, SqlParameter[] param)
         {
-            using (SqlDataAdapter adapter = new SqlDataAdapter(sqlText, GetSqlConnectionString()))
+            SqlConnection conn = new SqlConnection(connString);
+            SqlCommand cmd = new SqlCommand(sql,conn);
+            try
             {
-                DataTable dt =new DataTable();
-                adapter.SelectCommand.Parameters.AddRange(parameters);
-                adapter.Fill(dt);
-                return dt;
+                cmd.Parameters.AddRange(param);
+                conn.Open();
+                return cmd.ExecuteNonQuery();
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+            finally
+            {
+                conn.Close();
             }
         }
-        #endregion
 
-        #region 执行sql 脚本，返回一个SqlDataReader
-
-        public static SqlDataReader ExucteReader(string sqlText, params SqlParameter[] parameters)
+        public static SqlDataReader GetReader(string sql, SqlParameter[] param)
         {
-            //SqlDataReader要求，它读取数据的时候，它哟啊独占 它的SqlConnection对象，而且SqlConnection必须是Open状态。
-            SqlConnection conn =new SqlConnection(GetSqlConnectionString());//不要释放连接，因为后面还要需要连接打开状态。
-            SqlCommand cmd = conn.CreateCommand();
-            conn.Open();
-            cmd.CommandText = sqlText;
-            cmd.Parameters.AddRange(parameters);
-            //CommandBehavior.CloseConnection:代表，当SqlDataReader释放的时候，顺便把SqlConnection对象也释放掉。
-            return cmd.ExecuteReader(CommandBehavior.CloseConnection);
+            SqlConnection conn = new SqlConnection(connString);
+            SqlCommand cmd = new SqlCommand(sql,conn);
+            try
+            {
+                cmd.Parameters.AddRange(param);
+                return cmd.ExecuteReader(CommandBehavior.CloseConnection);
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
         }
+
         #endregion
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="procname"></param>
+        /// <param name="para"></param>
+        /// <returns></returns>
+        public static int UpdateByProc(string procname,SqlParameter[] para)
+        {
+            SqlConnection conn = new SqlConnection(connString);
+            SqlCommand cmd = new SqlCommand();
+            try
+            {
+                conn.Open();
+                cmd.Connection = conn;
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.CommandText = procname;
+                cmd.Parameters.AddRange(para);
+                return cmd.ExecuteNonQuery();
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+            finally
+            {
+                conn.Close();
+            }
+        }
     }
 }
